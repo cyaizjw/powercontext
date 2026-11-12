@@ -4,9 +4,9 @@ import csv
 import io
 import json
 import urllib.parse
-from typing import Tuple, Annotated, Literal
+from typing import Tuple
 
-from pydantic import BaseModel, Field, JsonValue
+from pydantic import BaseModel
 
 from powercontext.sources import TEXT_EVIDENCE_PROJECTION_KEY, AdapterSourceDefinition, TextEvidence
 from powercontext.sources.models import Source, SourceMaterialization
@@ -40,9 +40,12 @@ def parse_csv_document(value: CSVDocumentInput) -> Tuple[CSVRowInput, ...]:
     except UnicodeDecodeError:
         raise ValueError("Invalid UTF-8 encoding")
 
-    reader = csv.reader(io.StringIO(text), delimiter=',', quotechar='"', doublequote=True, strict=True)
-    
-    rows = list(reader)
+    try:
+        reader = csv.reader(io.StringIO(text), delimiter=',', quotechar='"', doublequote=True, strict=True)
+        rows = list(reader)
+    except csv.Error as e:
+        raise ValueError(f"Malformed CSV: {e}")
+
     if not rows:
         raise ValueError("Empty CSV document")
 
@@ -105,24 +108,20 @@ def csv_row_source_id(document_id: str, primary_key_value: str) -> str:
 
 
 class CSVRowSourceAdapter:
-    input_class = CSVDocumentInput
+    input_class = CSVRowInput  # 【修复 1】这里改为 CSVRowInput
     name = "csv-row"
     source_class = CSVRowSource
 
-    async def resolve(self, value: CSVDocumentInput, /) -> Tuple[CSVRowSource, ...]:
-        # Adapter 的 resolve 逻辑：解析出多行，转换成 Source
-        parsed_rows = parse_csv_document(value)
-        return tuple(
-            CSVRowSource(
-                name=csv_row_source_id(row.document_id, row.primary_key_value),
-                materialization=SourceMaterialization.CAPTURED,
-                document_id=row.document_id,
-                primary_key=row.primary_key,
-                primary_key_value=row.primary_key_value,
-                columns=row.columns,
-                values=row.values,
-            )
-            for row in parsed_rows
+    async def resolve(self, value: CSVRowInput, /) -> CSVRowSource:
+        # 【修复 2】单个输入直接返回单个 Source，不再解析文档
+        return CSVRowSource(
+            name=csv_row_source_id(value.document_id, value.primary_key_value),
+            materialization=SourceMaterialization.CAPTURED,
+            document_id=value.document_id,
+            primary_key=value.primary_key,
+            primary_key_value=value.primary_key_value,
+            columns=value.columns,
+            values=value.values,
         )
 
 
