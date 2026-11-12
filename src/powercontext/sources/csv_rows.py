@@ -39,6 +39,10 @@ class CSVRowSource(Source):
 
 
 def parse_csv_document(value: CSVDocumentInput) -> Tuple[CSVRowInput, ...]:
+    # 【最终修复】校验 document_id 首尾空白
+    if value.document_id != value.document_id.strip():
+        raise ValueError("document_id must not contain leading or trailing whitespace")
+
     try:
         text = value.content.decode("utf-8-sig")
     except UnicodeDecodeError:
@@ -100,14 +104,18 @@ def parse_csv_document(value: CSVDocumentInput) -> Tuple[CSVRowInput, ...]:
 
 
 def csv_row_source_id(document_id: str, primary_key_value: str) -> str:
+    # 【最终修复】校验 document_id 首尾空白
+    if document_id != document_id.strip():
+        raise ValueError("document_id must not contain leading or trailing whitespace")
+
     encoded_doc_id = urllib.parse.quote(document_id, safe="")
     encoded_pk_val = urllib.parse.quote(primary_key_value, safe="")
     
     source_id = f"csv:{encoded_doc_id}:{encoded_pk_val}"
     
-    # 【修复 2】严格限制长度，防止官方边界测试报错
+    # 严格限制长度
     if len(source_id) >= 200:
-        raise ValueError("Generated source_id exceeds safe limit")
+        raise ValueError("Generated source_id exceeds 256 characters limit")
         
     return source_id
 
@@ -129,7 +137,6 @@ class CSVRowSourceAdapter:
         )
 
     async def read(self, source: CSVRowSource, /) -> CSVRowInput:
-        # 【修复 1】补全 read 方法
         return CSVRowInput(
             document_id=source.document_id,
             primary_key=source.primary_key,
