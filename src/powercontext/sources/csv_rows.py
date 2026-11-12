@@ -2,7 +2,7 @@ import csv
 import io
 from typing import Tuple
 from pydantic import BaseModel
-from powercontext.core import Source, SourceDefinition 
+from powercontext.sources import Source, SourceDefinition
 import urllib.parse
 import json
 
