@@ -2,6 +2,7 @@ import csv
 import io
 from typing import Tuple
 from pydantic import BaseModel
+import urllib.parse
 
 # ==========================================
 # 1. 定义数据结构 (对齐赛题 2.2 节)
@@ -94,3 +95,39 @@ def parse_csv_document(value: CSVDocumentInput) -> Tuple[CSVRowInput, ...]:
         ))
 
     return tuple(parsed_rows)
+
+
+# (注意：把上面这行 import 放到文件最顶部，和其他 import 放在一起)
+
+# ==========================================
+# 3. 实现 Source ID 生成与类定义 (对齐赛题 2.4 节)
+# ==========================================
+
+# 注意：这里假设官方有 Source 基类。如果没有，由于是网页端，我们先用普通类代替，
+# 待会儿如果运行报错，我们再改成继承。
+from powercontext.core import Source, SourceDefinition 
+
+class CSVRowSource(Source):
+    source_id: str
+    document_id: str
+    primary_key: str
+    primary_key_value: str
+    columns: Tuple[str, ...]
+    values: Tuple[str, ...]
+
+def csv_row_source_id(document_id: str, primary_key_value: str) -> str:
+    """
+    按固定格式生成稳定的 source_id：
+    csv:{percent-encoded document_id}:{percent-encoded primary_key_value}
+    """
+    # 使用 safe="" 确保所有特殊字符（包括斜杠等）都被编码
+    encoded_doc_id = urllib.parse.quote(document_id, safe="")
+    encoded_pk_val = urllib.parse.quote(primary_key_value, safe="")
+    
+    source_id = f"csv:{encoded_doc_id}:{encoded_pk_val}"
+    
+    # 校验长度限制
+    if len(source_id) > 256:
+        raise ValueError("Generated source_id exceeds 256 characters limit")
+        
+    return source_id
