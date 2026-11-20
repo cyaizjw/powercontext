@@ -847,6 +847,28 @@ class ScopedContextApplication:
                 await authorize_scopes((self.scope_id, *scope.context_references))
             return await self._prepare(request, scope)
 
+    async def prepare_incremental(self, request: Any, base_pack: Any = None) -> Any:
+        """
+        增量接口：未提供 base 时返回完整 ContextPack，提供合法 base 时返回 ContextPackDelta
+        """
+        from powercontext.builtin.runtime.context_pack import ContextPack, ContextPackDelta
+        
+        # 1. 调用官方原有的 prepare 获取当前完整上下文
+        full_context = await self.prepare(request)
+        
+        # 2. 将上下文的正文（假设官方 Context 对象有 content 属性）打包
+        content = getattr(full_context, "content", None)
+        if content is None:
+            # 如果官方返回的内容字段不叫 content，尝试提取
+            content = str(full_context)
+            
+        target_pack = ContextPack.from_content(content)
+        
+        # 3. 根据是否提供 base 返回不同结果
+        if base_pack is None:
+            return target_pack
+        return ContextPackDelta.between(base_pack, target_pack)
+
     async def _prepare(self, request: PrepareContextRequest, scope: ScopeDescriptor, /) -> PreparedContext:
         build, effort = await self._prepare_build(request, scope)
         if effort is not None and self._runtime._recall_effort_sink is not None:
